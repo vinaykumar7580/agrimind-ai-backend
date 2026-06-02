@@ -1,7 +1,6 @@
 from app.rag.vector_db import vector_store
 
-
-def retrieve(query: str, k: int = 3):
+def retrieve_context(query: str, k: int = 4):
 
     docs = vector_store.similarity_search(
         query,

@@ -1,31 +1,32 @@
 from langchain_ollama import ChatOllama
-from app.rag.retriever import retrieve
+
+from app.rag.retriever import retrieve_context
 
 llm = ChatOllama(
     model="llama3",
     temperature=0.2
 )
 
-def ask_rag(query: str):
+def ask_rag(question: str):
 
-    docs = retrieve(query)
+    docs = retrieve_context(question)
 
     context = "\n\n".join(
-        [d.page_content for d in docs]
+        [doc.page_content for doc in docs]
     )
 
     prompt = f"""
-You are an agriculture expert AI.
+You are an agriculture expert.
 
-Use ONLY the context below to answer.
+Answer ONLY from the context below.
 
 Context:
 {context}
 
 Question:
-{query}
+{question}
 
-Answer in simple farming language:
+Answer:
 """
 
     response = llm.invoke(prompt)
