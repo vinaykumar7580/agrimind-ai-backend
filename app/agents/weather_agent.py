@@ -1,7 +1,11 @@
-def weather_agent():
+from app.services.weather_service import get_weather
+
+def weather_agent(city):
+
+    data = get_weather(city)
 
     return {
-        "temperature": "31°C",
-        "humidity": "70%",
-        "rainfall": "Moderate"
+        "temperature": data["main"]["temp"],
+        "humidity": data["main"]["humidity"],
+        "wind_speed": data["wind"]["speed"]
     }
