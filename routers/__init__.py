@@ -1,0 +1,1 @@
+from routers import auth_router, scan_router, chat_router, market_router, weather_router, community_router
