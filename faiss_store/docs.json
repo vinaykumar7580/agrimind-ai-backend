@@ -1,0 +1,118 @@
+[
+  {
+    "id": "d001",
+    "text": "Early Blight (Alternaria solani) in Tomato:\nSymptoms: Brown circular spots with yellow halo on older leaves, 1-2cm diameter. Concentric rings give target-board appearance.\nCause: Fungal pathogen Alternaria solani. Favoured by warm humid weather (24-29°C), excessive dew.\nTreatment: Mancozeb 75 WP @ 2g/litre every 7-10 days. Copper Oxychloride 50 WP @ 3g/litre as follow-up.\nPrevention: Crop rotation, remove infected leaves, avoid overhead irrigation, apply mulch.",
+    "metadata": {
+      "crop": "tomato",
+      "type": "disease"
+    }
+  },
+  {
+    "id": "d002",
+    "text": "Late Blight (Phytophthora infestans) in Potato/Tomato:\nSymptoms: Water-soaked pale green spots on leaves, white cottony growth on undersides in humid conditions. Brown lesions on stems.\nCause: Oomycete pathogen. Spreads rapidly in cool wet weather (10-20°C, >90% humidity).\nTreatment: Metalaxyl + Mancozeb (Ridomil Gold) @ 2.5g/litre. Dimethomorph 50 WP @ 1g/litre.\nPrevention: Certified disease-free seed, adequate spacing, avoid late-evening irrigation.",
+    "metadata": {
+      "crop": "potato",
+      "type": "disease"
+    }
+  },
+  {
+    "id": "d003",
+    "text": "Powdery Mildew in Wheat:\nSymptoms: White powdery coating on leaves and stems. Causes yellowing and premature leaf death.\nCause: Blumeria graminis. Favoured by moderate temperatures (15-22°C) and high humidity.\nTreatment: Propiconazole 25 EC @ 0.1% (1ml/litre). Tebuconazole 250 EW @ 1ml/litre.\nPrevention: Resistant varieties like HD-2781, PBW-343. Avoid excess nitrogen.",
+    "metadata": {
+      "crop": "wheat",
+      "type": "disease"
+    }
+  },
+  {
+    "id": "d004",
+    "text": "Yellow Mosaic Virus in Soybean:\nSymptoms: Interveinal chlorosis (yellow patches between veins), mottled appearance, leaf curl, stunted growth.\nCause: Mungbean Yellow Mosaic Virus (MYMV), transmitted by whitefly Bemisia tabaci.\nTreatment: No cure for infected plants. Control whitefly with Imidacloprid 17.8 SL @ 0.5ml/litre or Thiamethoxam 25 WG @ 0.3g/litre.\nPrevention: Resistant varieties (JS 335, NRC 37). Roguing infected plants. Yellow sticky traps.",
+    "metadata": {
+      "crop": "soybean",
+      "type": "disease"
+    }
+  },
+  {
+    "id": "d005",
+    "text": "Red Rot in Sugarcane:\nSymptoms: Red discolouration inside stalk with white patches. Sour smell, wilting of top leaves.\nCause: Colletotrichum falcatum fungus. Spreads through infected setts and waterlogging.\nTreatment: No effective chemical cure. Remove and destroy infected clumps. Treat setts with Carbendazim 50 WP @ 1g/litre before planting.\nPrevention: Use disease-free setts from certified nurseries. Resistant varieties Co 86032, Co 94012.",
+    "metadata": {
+      "crop": "sugarcane",
+      "type": "disease"
+    }
+  },
+  {
+    "id": "d006",
+    "text": "Nitrogen Deficiency in crops:\nSymptoms: Yellowing starting from older (lower) leaves moving upward. Stunted growth, pale green colour throughout plant.\nCorrection: Apply Urea (46% N) @ 20-25 kg/acre as top dressing. For immediate effect, foliar spray of 2% Urea solution.\nCrops most affected: Maize, Rice, Wheat, Sugarcane.\nPrevention: Soil test before sowing. Split nitrogen application — 50% basal, 25% at 30 DAS, 25% at 60 DAS.",
+    "metadata": {
+      "type": "nutrient_deficiency",
+      "nutrient": "nitrogen"
+    }
+  },
+  {
+    "id": "d007",
+    "text": "Phosphorus Deficiency:\nSymptoms: Purple or reddish coloration on undersides of leaves and stems. Dark green older leaves. Poor root development, delayed flowering.\nCorrection: Apply DAP (18:46:0) @ 100 kg/ha. Single Superphosphate (16% P2O5) @ 250 kg/ha.\nSoil treatment: Rock phosphate for acidic soils. Apply with organic matter to improve availability.\nPrevention: Maintain soil pH 6.0-7.0 for maximum phosphorus availability.",
+    "metadata": {
+      "type": "nutrient_deficiency",
+      "nutrient": "phosphorus"
+    }
+  },
+  {
+    "id": "d008",
+    "text": "Aphid infestation management:\nSymptoms: Clusters of small soft-bodied insects on young shoots and undersides of leaves. Sticky honeydew, sooty mould, leaf curl.\nCrops affected: Wheat, Mustard, Chilli, Tomato, Cotton, Potato.\nTreatment: Imidacloprid 17.8 SL @ 0.3ml/litre spray. Dimethoate 30 EC @ 2ml/litre. Neem oil 5ml/litre for organic control.\nBiological control: Encourage ladybird beetles (Coccinellidae) and parasitic wasps.",
+    "metadata": {
+      "type": "pest",
+      "pest": "aphid"
+    }
+  },
+  {
+    "id": "s001",
+    "text": "Alluvial Soil characteristics and management:\nFound in: Indo-Gangetic plains, river deltas. States: UP, Bihar, Punjab, Haryana, West Bengal.\nProperties: High fertility, good water retention, pH 6.5-8.0. Rich in potash, poor in nitrogen and phosphorus.\nBest crops: Wheat, Rice, Sugarcane, Maize, Vegetables.\nManagement: Regular organic matter addition, balanced NPK, avoid waterlogging.",
+    "metadata": {
+      "soil_type": "alluvial"
+    }
+  },
+  {
+    "id": "s002",
+    "text": "Black Cotton Soil (Regur) characteristics:\nFound in: Maharashtra, MP, Gujarat, Karnataka, AP.\nProperties: High clay content (montmorillonite), swells when wet, cracks when dry. pH 7.5-8.5. Rich in calcium, magnesium, potassium. Poor in nitrogen, phosphorus, organic matter.\nBest crops: Cotton, Soybean, Sorghum, Wheat, Sunflower.\nManagement: Deep ploughing, green manuring, gypsum for excess sodium.",
+    "metadata": {
+      "soil_type": "black_cotton"
+    }
+  },
+  {
+    "id": "s003",
+    "text": "Ideal soil pH ranges for major crops:\nRice: 5.5-6.5, Wheat: 6.0-7.0, Maize: 5.8-7.0, Cotton: 6.0-8.0, Soybean: 6.0-6.8, Tomato: 6.0-6.8, Potato: 4.8-5.5, Onion: 6.0-7.0, Sugarcane: 6.0-7.5.\nIf pH too low (acidic): Apply agricultural lime (CaCO3) @ 2-3 tonnes/ha.\nIf pH too high (alkaline): Apply gypsum (CaSO4) @ 5-10 tonnes/ha or elemental sulphur.",
+    "metadata": {
+      "type": "soil_management"
+    }
+  },
+  {
+    "id": "m001",
+    "text": "Onion price seasonality in India:\nPrices typically lowest during Oct-Dec (harvest season, Rabi crop arrives). Prices peak during June-August (pre-Kharif scarcity period).\nKey markets: Lasalgaon (Asia's largest onion market), Pune, Nashik, Delhi Azadpur.\nStorage tip: Store in well-ventilated gunny bags at 25-35°C and <65% humidity. Losses reduced by treating with maleic hydrazide 2500ppm before harvest.\nPrice factors: Maharashtra production (35% of India), export demand, monsoon timing.",
+    "metadata": {
+      "crop": "onion",
+      "type": "market"
+    }
+  },
+  {
+    "id": "m002",
+    "text": "MSP (Minimum Support Price) policy in India:\nCACP recommends MSP for 23 crops annually. Government announces before sowing season.\nKharif 2025-26 key MSPs: Paddy (Common) Rs 2300/qtl, Maize Rs 2090/qtl, Soybean Rs 4892/qtl, Cotton (Medium) Rs 7121/qtl, Groundnut Rs 6783/qtl.\nRabi 2025-26: Wheat Rs 2425/qtl, Mustard Rs 5950/qtl, Chana Rs 5650/qtl.\nHow to sell at MSP: Register on PM-KISAN portal, contact local APMC or FCI procurement centre.",
+    "metadata": {
+      "type": "market_policy"
+    }
+  },
+  {
+    "id": "f001",
+    "text": "Kharif crop calendar for India:\nSowing: June-July (with onset of monsoon). Harvest: September-October.\nMajor Kharif crops: Rice, Maize, Sorghum, Bajra, Cotton, Soybean, Groundnut, Turmeric, Sugarcane.\nKey activities: Land preparation in May, seed treatment before sowing, top dressing at 30 and 60 DAS, pest monitoring weekly.",
+    "metadata": {
+      "type": "farming_calendar",
+      "season": "kharif"
+    }
+  },
+  {
+    "id": "f002",
+    "text": "Rabi crop calendar for India:\nSowing: October-December. Harvest: March-April.\nMajor Rabi crops: Wheat, Barley, Mustard, Chana (Chickpea), Lentil, Peas, Potato.\nKey activities: Deep ploughing after Kharif harvest, irrigation scheduling (6-8 irrigations for wheat), weed management at 3 weeks after sowing.",
+    "metadata": {
+      "type": "farming_calendar",
+      "season": "rabi"
+    }
+  }
+]

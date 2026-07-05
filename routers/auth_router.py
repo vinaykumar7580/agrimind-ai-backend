@@ -48,7 +48,7 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
     db.refresh(user)
 
     token = create_access_token({"sub": user.id})
-    return {"access_token": token, "token_type": "bearer", "user": _user_out(user)}
+    return {"message": "Signup completed successfully.", "success":True}
 
 @router.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):

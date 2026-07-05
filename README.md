@@ -329,8 +329,6 @@ source venv/Scripts/activate
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Configure environment
-cp .env.example .env
 # Edit .env with your MySQL credentials and API keys
 
 # 4. Run the server
