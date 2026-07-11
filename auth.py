@@ -26,19 +26,33 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def decode_token(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.APP_SECRET_KEY, algorithms=[settings.APP_ALGORITHM])
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        payload = jwt.decode(
+            token,
+            settings.APP_SECRET_KEY,
+            algorithms=[settings.APP_ALGORITHM],
+        )
+        return payload
+    except JWTError as e:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db)
 ) -> User:
+
     payload = decode_token(credentials.credentials)
-    user_id: int = payload.get("sub")
+
+    user_id = payload.get("sub")
+
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
-    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+
+    user = db.query(User).filter(
+        User.id == int(user_id),
+        User.is_active == True
+    ).first()
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+
     return user
