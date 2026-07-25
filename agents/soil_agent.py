@@ -1,4 +1,4 @@
-from services.ollama_service import vision_analyze, generate_json
+from services.gemini_service import vision_analyze, generate_json
 from rag.vector_store import similarity_search
 
 SOIL_SYSTEM = """You are AgriMind's soil science expert specializing in Indian agricultural soils.

@@ -1,5 +1,5 @@
 import httpx
-from services.ollama_service import generate
+from services.gemini_service import generate
 from config import settings
 
 async def get_weather(district: str, state: str, lat: float = None, lon: float = None) -> dict:

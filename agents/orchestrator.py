@@ -1,4 +1,4 @@
-from services.ollama_service import generate
+from services.gemini_service import generate
 from rag.vector_store import similarity_search
 
 AGRIMIND_SYSTEM = """You are AgriMind AI, an expert agricultural assistant for Indian farmers.

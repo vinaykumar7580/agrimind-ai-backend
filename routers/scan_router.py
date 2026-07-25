@@ -7,6 +7,7 @@ from auth import get_current_user
 from agents.crop_agent import analyze_crop_image
 from agents.soil_agent import analyze_soil_image
 from services.image_service import save_image
+from services.gemini_service import GeminiUnavailableError
 
 router = APIRouter(prefix="/scan", tags=["scan"])
 
@@ -37,8 +38,15 @@ async def analyze(
     }
 
     # Run appropriate agent
+    try:
+        if scan_type == "crop":
+            result = await analyze_crop_image(image_bytes, user_ctx)
+        else:
+            result = await analyze_soil_image(image_bytes, user_ctx)
+    except GeminiUnavailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
     if scan_type == "crop":
-        result = await analyze_crop_image(image_bytes, user_ctx)
         scan = Scan(
             user_id=current_user.id,
             scan_type="crop",
@@ -55,7 +63,6 @@ async def analyze(
             location=location or current_user.district,
         )
     else:
-        result = await analyze_soil_image(image_bytes, user_ctx)
         scan = Scan(
             user_id=current_user.id,
             scan_type="soil",

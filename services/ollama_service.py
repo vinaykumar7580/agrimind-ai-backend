@@ -2,6 +2,8 @@ import base64
 import httpx
 import json
 from config import settings
+from PIL import Image
+from io import BytesIO
 
 OLLAMA_URL = settings.OLLAMA_BASE_URL
 
@@ -28,18 +30,33 @@ async def generate_json(prompt: str, system: str = "") -> dict:
     text = text.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
     return json.loads(text)
 
+async def resize_image(image_bytes):
+    img = Image.open(BytesIO(image_bytes))
+
+    img.thumbnail((1024, 1024))
+
+    buffer = BytesIO()
+    img.save(buffer, format="JPEG", quality=85)
+
+    return buffer.getvalue()
 
 async def vision_analyze(image_bytes: bytes, prompt: str) -> str:
     """Analyze an image using Ollama vision model (llava)."""
+    image_bytes =await resize_image(image_bytes)
     b64 = base64.b64encode(image_bytes).decode()
+
     payload = {
         "model": settings.OLLAMA_VISION_MODEL,
         "prompt": prompt,
         "images": [b64],
         "stream": False,
-        "options": {"temperature": 0.2}
+        "keep_alive": "10m",
+        "options": {
+            "temperature": 0.2,
+            "num_predict": 300
+        }
     }
-    async with httpx.AsyncClient(timeout=180) as client:
+    async with httpx.AsyncClient(timeout=600) as client:
         r = await client.post(f"{OLLAMA_URL}/api/generate", json=payload)
         r.raise_for_status()
         return r.json()["response"].strip()

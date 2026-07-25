@@ -1,4 +1,4 @@
-from services.ollama_service import generate_json
+from services.gemini_service import generate_json
 from rag.vector_store import similarity_search
 
 MARKET_SYSTEM = """You are AgriMind's agricultural market analyst specializing in Indian commodity markets and APMC mandis.
