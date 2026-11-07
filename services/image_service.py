@@ -20,7 +20,7 @@ def save_image(image_bytes: bytes, prefix: str = "img") -> str:
     filename = f"{prefix}_{uuid.uuid4().hex[:12]}.jpg"
     path = UPLOAD_DIR / filename
     img.save(path, "JPEG", quality=85)
-    return str(path)
+    return path.as_posix()
 
 def load_image_bytes(path: str) -> bytes:
     with open(path, "rb") as f:

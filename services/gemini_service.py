@@ -104,9 +104,11 @@ async def vision_analyze(image_bytes: bytes, prompt: str) -> str:
     image_bytes = await resize_image(image_bytes)
     image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
 
+    # Thinking tokens count against max_output_tokens, so a low limit can
+    # leave almost nothing for the visible answer.
     config = types.GenerateContentConfig(
         temperature=0.2,
-        max_output_tokens=300,
+        max_output_tokens=4096,
     )
     try:
         response = await _generate_content(
@@ -118,7 +120,17 @@ async def vision_analyze(image_bytes: bytes, prompt: str) -> str:
         raise GeminiUnavailableError(
             "Gemini is currently overloaded. Please try again in a moment."
         ) from e
-    return (response.text or "").strip()
+
+    # The diagnosis is built entirely on this text, so never continue with a
+    # partial description: the next step would invent a crop to fill the gap.
+    text = (response.text or "").strip()
+    finish_reason = response.candidates[0].finish_reason if response.candidates else None
+    if not text or finish_reason != types.FinishReason.STOP:
+        logger.error(f"Incomplete vision response: finish_reason={finish_reason}, length={len(text)}")
+        raise GeminiUnavailableError(
+            "The image could not be analyzed. Please try again."
+        )
+    return text
 
 
 @_retry_gemini

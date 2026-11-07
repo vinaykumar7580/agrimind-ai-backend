@@ -44,6 +44,14 @@ USER CONTEXT:
 Location: {user_context.get('district', 'India')}, {user_context.get('state', '')}
 Farming type: {user_context.get('farming_type', 'traditional')}
 
+RULES:
+- The VISION ANALYSIS is the only evidence of what is in the image. Take the crop identity and every symptom from it.
+- Never infer the crop or a disease from the location, the farming type, or the knowledge documents.
+- The knowledge documents may be unrelated. Use one only if it matches the crop and symptoms in the VISION ANALYSIS.
+- Do not report symptoms the VISION ANALYSIS does not describe. If none are described, set disease to "Healthy" and severity to "none".
+- Use the location only to tailor treatment and prevention advice.
+- Set confidence according to how clearly the VISION ANALYSIS identifies the crop and condition.
+
 Generate a complete crop diagnosis as JSON with this exact structure:
 {{
   "crop_name": "Common name",

@@ -12,7 +12,7 @@
 - 🤖 **Conversational AI assistant** with agricultural expertise
 - 🌍 **Farmer community** to share knowledge and experiences
 
-The platform uses a **3-step agentic AI pipeline**: vision model analysis → RAG knowledge retrieval → structured LLM synthesis — all running **100% locally** via Ollama.
+The platform uses a **3-step agentic AI pipeline**: vision model analysis → RAG knowledge retrieval → structured LLM synthesis — powered by **Google Gemini**.
 
 ---
 
@@ -93,10 +93,9 @@ The platform uses a **3-step agentic AI pipeline**: vision model analysis → RA
 ### AI / ML
 | Technology | Purpose |
 |---|---|
-| Ollama | Local LLM inference server |
-| LLaVA | Vision model for crop/soil image analysis |
-| LLaMA 3.2 | Text generation for diagnosis and chat |
-| nomic-embed-text | Text embeddings for RAG |
+| Google Gemini | Hosted LLM for text generation, diagnosis and chat |
+| Gemini Vision | Crop/soil image analysis |
+| all-MiniLM-L6-v2 | Local text embeddings for RAG (sentence-transformers) |
 | FAISS | Vector similarity search |
 
 ### Database
@@ -129,8 +128,8 @@ The platform uses a **3-step agentic AI pipeline**: vision model analysis → RA
 │  │                                                         │ │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌───────────────┐  │ │
 │  │  │  Crop Agent │  │  Soil Agent │  │ Market Agent  │  │ │
-│  │  │  (LLaVA +   │  │  (LLaVA +   │  │  (LLaMA 3.2)  │  │ │
-│  │  │  LLaMA 3.2) │  │  LLaMA 3.2) │  └───────────────┘  │ │
+│  │  │  (Gemini    │  │  (Gemini    │  │  (Gemini)     │  │ │
+│  │  │  + RAG)     │  │  + RAG)     │  └───────────────┘  │ │
 │  │  └──────┬──────┘  └──────┬──────┘                      │ │
 │  │         │                │                              │ │
 │  │  ┌──────▼────────────────▼──────────────────────────┐  │ │
@@ -143,14 +142,14 @@ The platform uses a **3-step agentic AI pipeline**: vision model analysis → RA
           ┌────────────┴────────────┐
           ▼                         ▼
 ┌─────────────────┐       ┌──────────────────┐
-│   MySQL 8.0     │       │   Ollama Server   │
-│                 │       │   (Port 11434)    │
+│   MySQL 8.0     │       │   Gemini API     │
+│                 │       │   (Google AI)    │
 │ • users         │       │                  │
-│ • scans         │       │ • llava           │
-│ • chat_messages │       │ • llama3.2        │
-│ • community_    │       │ • nomic-embed-    │
-│   posts         │       │   text            │
-│ • market_prices │       └──────────────────┘
+│ • scans         │       │ • Text + chat    │
+│ • chat_messages │       │ • Vision         │
+│ • community_    │       └──────────────────┘
+│   posts         │
+│ • market_prices │
 │ • weather_logs  │
 └─────────────────┘
        +
@@ -173,7 +172,7 @@ Image Upload
      ▼
 ┌─────────────────────────────┐
 │  STEP 1: Vision Analysis    │
-│  Model: LLaVA               │
+│  Model: Gemini              │
 │  → Identifies crop/disease  │
 │  → Describes visual symptoms│
 └──────────────┬──────────────┘
@@ -191,7 +190,7 @@ Image Upload
                ▼
 ┌─────────────────────────────┐
 │  STEP 3: LLM Synthesis      │
-│  Model: LLaMA 3.2           │
+│  Model: Gemini              │
 │  → Combines vision + RAG    │
 │  → Outputs structured JSON  │
 │  → Disease, treatment,      │
@@ -265,7 +264,7 @@ agrimind/
     │   └── community_router.py          # /community/* endpoints
     │
     ├── services/
-    │   ├── ollama_service.py            # LLM + vision + embedding calls
+    │   ├── gemini_service.py            # LLM + vision + embedding calls
     │   └── image_service.py            # Image save/resize/serve
     │
     ├── requirements.txt
@@ -285,7 +284,6 @@ Make sure you have the following installed:
 | Node.js | 18+ | [nodejs.org](https://nodejs.org) |
 | Python | 3.11+ | [python.org](https://python.org) |
 | MySQL | 8.0+ | [mysql.com](https://mysql.com) |
-| Ollama | latest | [ollama.ai](https://ollama.ai) |
 | Git | any | [git-scm.com](https://git-scm.com) |
 
 ---
@@ -340,29 +338,10 @@ API Docs at: **http://localhost:8000/docs**
 
 ---
 
-### Ollama Setup
+### Gemini Setup
 
-```bash
-# 1. Install Ollama
-# Linux
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# Mac
-brew install ollama
-
-# 2. Start Ollama server
-ollama serve
-
-# 3. Pull required models (in a new terminal)
-ollama pull llama3.2          # Text generation (~2GB)
-ollama pull llava             # Vision model (~4GB)
-ollama pull nomic-embed-text  # Embeddings (~274MB)
-
-# 4. Verify models are running
-ollama list
-```
-
-> ⚠️ **Hardware Requirements:** Minimum 8GB RAM for llama3.2 + llava. 16GB recommended for smooth performance.
+1. Create an API key at [Google AI Studio](https://aistudio.google.com/apikey).
+2. Set it as `GEMINI_API_KEY` in your `.env` file (see [Environment Variables](#-environment-variables)).
 
 ---
 
@@ -417,11 +396,10 @@ MYSQL_USER=agrimind_user
 MYSQL_PASSWORD=your_mysql_password
 MYSQL_DATABASE=agrimind
 
-# ── Ollama ────────────────────────────────────
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2                    # Text model
-OLLAMA_VISION_MODEL=llava                # Vision model
-
+# ── Gemini ────────────────────────────────────
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-3.6-flash            # Text model
+GEMINI_VISION_MODEL=gemini-3.6-flash     # Vision model
 
 # ── OpenWeatherMap (free tier) ────────────────
 # Get free API key at: https://openweathermap.org/api
@@ -513,9 +491,9 @@ location:  "Field A" (optional)
 Runs a **3-step agentic pipeline** for crop disease detection:
 
 ```
-1. LLaVA Vision  →  Describe what's visible in the image
+1. Gemini Vision →  Describe what's visible in the image
 2. FAISS RAG  →  Retrieve top-3 matching disease documents
-3. LLaMA 3.2     →  Synthesize structured JSON diagnosis
+3. Gemini        →  Synthesize structured JSON diagnosis
 ```
 
 **Output includes:**
@@ -532,9 +510,9 @@ Runs a **3-step agentic pipeline** for crop disease detection:
 Same 3-step pipeline for soil samples:
 
 ```
-1. LLaVA Vision  →  Analyze color, texture, moisture
+1. Gemini Vision →  Analyze color, texture, moisture
 2. FAISS RAG  →  Retrieve soil type knowledge
-3. LLaMA 3.2     →  Generate NPK + pH report JSON
+3. Gemini        →  Generate NPK + pH report JSON
 ```
 
 **Output includes:**
@@ -548,7 +526,7 @@ Same 3-step pipeline for soil samples:
 
 ```
 OpenWeatherMap API  →  Current conditions + 7-day forecast
-LLaMA 3.2           →  AI farm advisory based on weather
+Gemini              →  AI farm advisory based on weather
 ```
 
 **Output includes:**
@@ -561,7 +539,7 @@ LLaMA 3.2           →  AI farm advisory based on weather
 
 ```
 Seed price database  →  Current prices from 10 crops
-LLaMA 3.2 + RAG      →  30-day AI price forecast
+Gemini + RAG         →  30-day AI price forecast
 ```
 
 ### Chat Orchestrator (`agents/orchestrator.py`)
@@ -573,7 +551,7 @@ User message
     + User farm profile (location, crops, land)
     + Last 6 conversation messages
          ↓
-    LLaMA 3.2
+    Gemini
          ↓
     Personalized agricultural response
 ```

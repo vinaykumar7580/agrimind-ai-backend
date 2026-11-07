@@ -6,7 +6,7 @@ from models import User, Scan
 from auth import get_current_user
 from agents.crop_agent import analyze_crop_image
 from agents.soil_agent import analyze_soil_image
-from services.image_service import save_image
+from services.image_service import save_image, get_image_url
 from services.gemini_service import GeminiUnavailableError
 
 router = APIRouter(prefix="/scan", tags=["scan"])
@@ -78,7 +78,7 @@ async def analyze(
     db.commit()
     db.refresh(scan)
 
-    return {"scan_id": scan.id, "result": result, "image_url": f"/uploads/{image_path.split('/')[-1]}"}
+    return {"scan_id": scan.id, "result": result, "image_url": get_image_url(image_path)}
 
 @router.get("/history")
 def scan_history(
@@ -135,6 +135,6 @@ def _scan_out(scan: Scan) -> dict:
         "ai_summary": scan.ai_summary,
         "status": scan.status,
         "location": scan.location,
-        "image_url": f"/uploads/{scan.image_path.split('/')[-1]}" if scan.image_path else None,
+        "image_url": get_image_url(scan.image_path) if scan.image_path else None,
         "created_at": scan.created_at.isoformat(),
     }
