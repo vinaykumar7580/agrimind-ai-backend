@@ -6,6 +6,7 @@ from pathlib import Path
 
 from database import init_db
 from rag.vector_store import init_vector_store
+from agents.market_agent import start_price_refresh
 from routers import auth_router, scan_router, chat_router, market_router, weather_router, community_router
 
 @asynccontextmanager
@@ -14,6 +15,7 @@ async def lifespan(app: FastAPI):
     print("🌱 Starting AgriMind AI Backend...")
     init_db()
     init_vector_store()
+    start_price_refresh()  # loads live mandi prices in the background
     Path("uploads").mkdir(exist_ok=True)
     print("✅ AgriMind ready!")
     yield

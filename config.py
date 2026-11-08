@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     CHROMA_PERSIST_DIR: str = "./chroma_db"
     OPENWEATHER_API_KEY: str = ""
+    DATA_GOV_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
