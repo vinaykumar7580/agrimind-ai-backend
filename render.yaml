@@ -46,5 +46,7 @@ services:
         value: gemini-3.6-flash
       - key: OPENWEATHER_API_KEY
         sync: false
-      - key: DATA_GOV_API_KEY
-        sync: false
+      # data.gov.in refuses servers outside India, so Render serves the prices that
+      # scripts/update_prices.py saves to the database from a PC in India.
+      - key: MARKET_PRICES_FROM_DB
+        value: "true"

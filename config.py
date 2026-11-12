@@ -22,6 +22,9 @@ class Settings(BaseSettings):
 
     OPENWEATHER_API_KEY: str = ""
     DATA_GOV_API_KEY: str = ""
+    # True on servers outside India: data.gov.in refuses them, so serve the prices
+    # that scripts/update_prices.py (run on a PC in India) saves to the database.
+    MARKET_PRICES_FROM_DB: bool = False
 
     class Config:
         env_file = ".env"

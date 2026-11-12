@@ -144,12 +144,15 @@ def _pick_record(seed: dict, records: list[dict], known_markets: list[str] = Non
     return rows[len(rows) // 2]
 
 
-def _known_markets(db, crop: str) -> list[str]:
-    """Every mandi stored for this crop, most recently used first."""
+def _known_markets(db, crop: str, before: date) -> list[str]:
+    """Every mandi stored for this crop before `before`, most recently used first.
+    Today's rows don't count: an earlier run today may have used a stand-in mandi
+    because the usual one hadn't reported yet (prices arrive through the day)."""
+    before_start = datetime.combine(before, datetime.min.time())
     rows = db.query(MarketPrice.market, func.max(MarketPrice.recorded_at)) \
-        .filter(MarketPrice.crop_name == crop) \
+        .filter(MarketPrice.crop_name == crop, MarketPrice.recorded_at < before_start) \
         .group_by(MarketPrice.market) \
-        .order_by(func.max(MarketPrice.recorded_at).desc()).all()
+        .order_by(func.max(MarketPrice.recorded_at).desc(), func.max(MarketPrice.id).desc()).all()
     return [market for market, _ in rows if market]
 
 
@@ -160,7 +163,10 @@ def _prev_price_and_save(db, row: dict, day: date):
         MarketPrice.crop_name == row["name"], MarketPrice.market == row["market"]
     )
     prev = same.filter(MarketPrice.recorded_at < day_start).order_by(MarketPrice.recorded_at.desc()).first()
-    if not same.filter(MarketPrice.recorded_at == day_start).first():
+    today = same.filter(MarketPrice.recorded_at == day_start).first()
+    if today:   # prices arrive through the day: keep the newest
+        today.price, today.variety, today.state = row["price"], row["variety"], row["state"]
+    else:
         db.add(MarketPrice(
             crop_name=row["name"], variety=row["variety"], price=row["price"],
             prev_price=prev.price if prev else None, msp=row["msp"], market=row["market"],
@@ -171,10 +177,12 @@ def _prev_price_and_save(db, row: dict, day: date):
 
 def _build_live_prices(records: list[dict]) -> list[dict]:
     prices = []
+    days = [d for d in (_to_date(r.get("arrival_date")) for r in records) if d]
+    latest_day = max(days) if days else date.today()
     db = SessionLocal()
     try:
         for seed in TRACKED_CROPS:
-            picked = _pick_record(seed, records, _known_markets(db, seed["name"]))
+            picked = _pick_record(seed, records, _known_markets(db, seed["name"], latest_day))
             if not picked:
                 logger.warning("No live mandi price for %s today; leaving it out", seed["name"])
                 continue
@@ -227,7 +235,7 @@ def _refresh():
 
 def start_price_refresh():
     """Refresh prices in the background if they are due. Never blocks."""
-    if not settings.DATA_GOV_API_KEY:
+    if settings.MARKET_PRICES_FROM_DB or not settings.DATA_GOV_API_KEY:
         return
     with _lock:
         if _state["refreshing"] or time.time() < _state["next_refresh"]:
@@ -244,7 +252,7 @@ def start_price_scheduler():
     """Keep prices refreshing while the server runs, even if nobody opens the
     Market tab, so each day's price gets stored."""
     global _scheduler_started
-    if _scheduler_started or not settings.DATA_GOV_API_KEY:
+    if _scheduler_started or settings.MARKET_PRICES_FROM_DB or not settings.DATA_GOV_API_KEY:
         return
     _scheduler_started = True
 
@@ -256,8 +264,59 @@ def start_price_scheduler():
     threading.Thread(target=loop, daemon=True).start()
 
 
+DB_CACHE_SECONDS = 10 * 60
+_db_cache = {"prices": None, "at": 0.0}
+
+
+def _prices_from_db() -> list[dict]:
+    """Latest saved price per crop, in the same shape as live prices."""
+    db = SessionLocal()
+    try:
+        prices = []
+        for seed in TRACKED_CROPS:
+            crop = db.query(MarketPrice).filter(MarketPrice.crop_name == seed["name"])
+            # Newest id breaks ties: a later run today may have switched mandi.
+            latest = crop.order_by(MarketPrice.recorded_at.desc(), MarketPrice.id.desc()).first()
+            if not latest:
+                continue
+            prev = crop.filter(MarketPrice.market == latest.market,
+                               MarketPrice.recorded_at < latest.recorded_at) \
+                .order_by(MarketPrice.recorded_at.desc()).first()
+            prices.append(_with_change({
+                **seed,
+                "variety": latest.variety or seed["variety"],
+                "price": round(latest.price),
+                "market": latest.market,
+                "state": latest.state or seed["state"],
+                "date": latest.recorded_at.date().isoformat(),
+                "prev": prev.price if prev else None,
+                "prev_date": prev.recorded_at.date().isoformat() if prev else None,
+            }))
+        return prices
+    finally:
+        db.close()
+
+
+def _get_db_prices() -> list[dict]:
+    with _lock:
+        if _db_cache["prices"] is not None and time.time() - _db_cache["at"] < DB_CACHE_SECONDS:
+            return _db_cache["prices"]
+    try:
+        prices = _prices_from_db()
+    except Exception as e:
+        logger.warning("Reading saved mandi prices failed (%s)", type(e).__name__)
+        with _lock:
+            return _db_cache["prices"] or []
+    with _lock:
+        _db_cache.update(prices=prices, at=time.time())
+    return prices
+
+
 def get_market_prices() -> list[dict]:
-    """Latest live prices. Empty until the first refresh succeeds."""
+    """Latest live prices. Empty until the first refresh succeeds.
+    With MARKET_PRICES_FROM_DB, the latest prices saved by scripts/update_prices.py."""
+    if settings.MARKET_PRICES_FROM_DB:
+        return _get_db_prices()
     start_price_refresh()
     with _lock:
         prices = _state["prices"]

@@ -11,3 +11,7 @@ __pycache__/
 
 # Embedding model cache (downloaded at build time)
 .fastembed_cache/
+
+# Cloud database details for scripts/update_prices.py
+.env.prices
+scripts/update_prices.log

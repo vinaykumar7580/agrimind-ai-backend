@@ -688,7 +688,7 @@ For production, also:
 **2. Backend: Render** (free web service)
 1. Push this repo to GitHub.
 2. In Render, choose **New > Blueprint** and pick the repo. It reads [render.yaml](render.yaml).
-3. Fill in the values it asks for: the TiDB details, `GEMINI_API_KEY`, `OPENWEATHER_API_KEY`, `DATA_GOV_API_KEY`, and `CORS_ORIGINS` (your Vercel URL, added after step 3).
+3. Fill in the values it asks for: the TiDB details, `GEMINI_API_KEY`, `OPENWEATHER_API_KEY`, and `CORS_ORIGINS` (your Vercel URL, added after step 3).
 4. When the deploy finishes, open `https://<your-service>.onrender.com/health`.
 
 **3. Frontend: Vercel**
@@ -700,6 +700,40 @@ For production, also:
 - Render's free service sleeps after about 15 minutes without traffic; the next request takes up to a minute while it wakes. Mandi prices are not saved while it sleeps.
 - The disk is reset on every deploy and restart, so uploaded scan images in `uploads/` are lost.
 - Gemini's free tier has daily request limits.
+
+### Mandi prices on the deployed backend
+
+data.gov.in refuses connections from servers outside India, and Render has no Indian region. So the deployed backend (`MARKET_PRICES_FROM_DB=true` in `render.yaml`) never calls data.gov.in. It serves the latest prices saved in the database, and a PC in India saves them by running `scripts/update_prices.py`.
+
+**1. Point the script at the cloud database.** Create `.env.prices` in the backend folder (it's git-ignored). The script reads `.env` first, then these values on top:
+```env
+MYSQL_HOST=gateway01.ap-southeast-1.prod.aws.tidbcloud.com
+MYSQL_PORT=4000
+MYSQL_USER=your_tidb_user
+MYSQL_PASSWORD=your_tidb_password
+MYSQL_DATABASE=agrimind
+MYSQL_SSL=true
+```
+`DATA_GOV_API_KEY` comes from your normal `.env`.
+
+**2. Run it once by hand:**
+```powershell
+venv\Scripts\python.exe scripts\update_prices.py
+```
+It prints each crop's price and mandi, and also writes to `scripts/update_prices.log`.
+
+**3. Schedule it** to run every 3 hours and when you log in. Run this in PowerShell from the backend folder:
+```powershell
+$root = (Get-Location).Path
+$action = New-ScheduledTaskAction -Execute "$root\venv\Scripts\pythonw.exe" -Argument "`"$root\scripts\update_prices.py`"" -WorkingDirectory $root
+$every3h = New-ScheduledTaskTrigger -Once -At "09:00" -RepetitionInterval (New-TimeSpan -Hours 3)
+$atLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 15) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName "AgriMind mandi prices" -Action $action -Trigger @($every3h, $atLogon) -Settings $settings
+```
+To remove it later: `Unregister-ScheduledTask -TaskName "AgriMind mandi prices"`.
+
+Prices only update while the PC is on. Each run updates that day's price, because data.gov.in adds records through the day. The API includes each price's `date`, so old prices are shown with their date.
 
 ---
 
