@@ -11,6 +11,7 @@ from config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
+optional_bearer_scheme = HTTPBearer(auto_error=False)
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -56,3 +57,15 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="User not found")
 
     return user
+
+def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_bearer_scheme),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """The logged-in user, or None for anonymous requests or a bad token."""
+    if not credentials:
+        return None
+    try:
+        return get_current_user(credentials, db)
+    except HTTPException:
+        return None

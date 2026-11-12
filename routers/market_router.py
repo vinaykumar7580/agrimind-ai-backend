@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -21,14 +23,32 @@ def market_prices(
         prices = [p for p in prices if p["state"] == state]
     return prices
 
+# Each forecast is a Gemini call (free tier: 20 a day), and prices only change
+# every few hours, so reuse a forecast for 6 hours.
+FORECAST_TTL_SECONDS = 6 * 60 * 60
+_forecast_cache: dict = {}
+
 @router.get("/forecast")
 async def price_forecast(crops: Optional[str] = Query(None)):
-    crop_list = crops.split(",") if crops else None
-    return await get_price_forecast(crop_list)
+    crop_list = [c.strip() for c in crops.split(",") if c.strip()] if crops else None
+    key = tuple(sorted(crop_list)) if crop_list else ()
+
+    cached = _forecast_cache.get(key)
+    if cached and time.time() - cached[0] < FORECAST_TTL_SECONDS:
+        return cached[1]
+
+    result = await get_price_forecast(crop_list)
+    if len(_forecast_cache) > 50:   # crops is free text; keep the cache bounded
+        _forecast_cache.clear()
+    _forecast_cache[key] = (time.time(), result)
+    return result
 
 @router.get("/summary")
 def market_summary():
     prices = get_market_prices()
+    if not prices:   # no live prices yet
+        return {"best_performer": None, "worst_performer": None, "average_price": None,
+                "above_msp_count": 0, "total_crops": 0}
     best = max(prices, key=lambda x: x["change"])
     worst = min(prices, key=lambda x: x["change"])
     avg = round(sum(p["price"] for p in prices) / len(prices))

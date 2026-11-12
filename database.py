@@ -27,6 +27,6 @@ def get_db():
 
 def init_db():
     """Create all tables."""
-    from models import User, Scan, ChatMessage, CommunityPost, MarketPrice, WeatherLog
+    from models import User, Scan, ChatMessage, CommunityPost, PostLike, PostBookmark, MarketPrice, WeatherLog
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables created")

@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Float, Boolean,
-    DateTime, ForeignKey, JSON, Enum
+    DateTime, ForeignKey, JSON, Enum, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -78,6 +78,26 @@ class CommunityPost(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="posts")
+
+
+class PostLike(Base):
+    __tablename__ = "post_likes"
+    __table_args__ = (UniqueConstraint("user_id", "post_id", name="uq_post_like"),)
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    post_id    = Column(Integer, ForeignKey("community_posts.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PostBookmark(Base):
+    __tablename__ = "post_bookmarks"
+    __table_args__ = (UniqueConstraint("user_id", "post_id", name="uq_post_bookmark"),)
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    post_id    = Column(Integer, ForeignKey("community_posts.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class MarketPrice(Base):

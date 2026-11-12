@@ -4,11 +4,12 @@ import time
 from datetime import date, datetime
 
 import requests
+from sqlalchemy import func
 
 from config import settings
 from database import SessionLocal
 from models import MarketPrice
-from services.gemini_service import generate_json
+from services.gemini_service import generate_json, GeminiUnavailableError
 from rag.vector_store import similarity_search
 
 logger = logging.getLogger(__name__)
@@ -26,20 +27,20 @@ MAX_PAGES = 25
 REFRESH_SECONDS = 6 * 60 * 60   # the data only changes once a day
 RETRY_SECONDS = 30 * 60         # after a failed refresh
 
-# Tracked crops. Prices here are sample data, shown (with is_mock=True) until live
-# prices arrive or when data.gov.in fails. MSP and category always come from here,
-# because the feed does not include them. "market" is the preferred live mandi.
-SEED_PRICES = [
-    {"name": "Wheat", "variety": "HD-2967", "price": 2285, "prev": 2230, "msp": 2275, "market": "Pune APMC", "state": "Maharashtra", "category": "Cereals"},
-    {"name": "Rice", "variety": "Basmati 1121", "price": 4850, "prev": 4910, "msp": 2300, "market": "Delhi Mandi", "state": "Delhi", "category": "Cereals"},
-    {"name": "Soybean", "variety": "JS 9560", "price": 4620, "prev": 4450, "msp": 4600, "market": "Indore APMC", "state": "Madhya Pradesh", "category": "Oilseeds"},
-    {"name": "Cotton", "variety": "Bt Cotton", "price": 6780, "prev": 6780, "msp": 7020, "market": "Nagpur Mandi", "state": "Maharashtra", "category": "Fibre"},
-    {"name": "Sugarcane", "variety": "Co-86032", "price": 340, "prev": 336, "msp": 315, "market": "Kolhapur", "state": "Maharashtra", "category": "Cash Crops"},
-    {"name": "Onion", "variety": "Nasik Red", "price": 1820, "prev": 1923, "msp": None, "market": "Lasalgaon", "state": "Maharashtra", "category": "Vegetables"},
-    {"name": "Tomato", "variety": "Hybrid", "price": 2140, "prev": 1980, "msp": None, "market": "Nashik", "state": "Maharashtra", "category": "Vegetables"},
-    {"name": "Maize", "variety": "Hybrid-10", "price": 2090, "prev": 2110, "msp": 2090, "market": "Nizamabad", "state": "Telangana", "category": "Cereals"},
-    {"name": "Mustard", "variety": "Pusa Bold", "price": 5620, "prev": 5480, "msp": 5650, "market": "Alwar Mandi", "state": "Rajasthan", "category": "Oilseeds"},
-    {"name": "Chana", "variety": "Desi", "price": 5350, "prev": 5300, "msp": 5440, "market": "Gulbarga", "state": "Karnataka", "category": "Pulses"},
+# Tracked crops. Only crops with a live price are returned. MSP and category come
+# from here because the feed doesn't include them. "market" is the preferred mandi,
+# and "variety" is used when the feed gives none.
+TRACKED_CROPS = [
+    {"name": "Wheat", "variety": "HD-2967", "msp": 2275, "market": "Pune APMC", "state": "Maharashtra", "category": "Cereals"},
+    {"name": "Rice", "variety": "Basmati 1121", "msp": 2300, "market": "Delhi Mandi", "state": "Delhi", "category": "Cereals"},
+    {"name": "Soybean", "variety": "JS 9560", "msp": 4600, "market": "Indore APMC", "state": "Madhya Pradesh", "category": "Oilseeds"},
+    {"name": "Cotton", "variety": "Bt Cotton", "msp": 7020, "market": "Nagpur Mandi", "state": "Maharashtra", "category": "Fibre"},
+    {"name": "Sugarcane", "variety": "Co-86032", "msp": 315, "market": "Kolhapur", "state": "Maharashtra", "category": "Cash Crops"},
+    {"name": "Onion", "variety": "Nasik Red", "msp": None, "market": "Lasalgaon", "state": "Maharashtra", "category": "Vegetables"},
+    {"name": "Tomato", "variety": "Hybrid", "msp": None, "market": "Nashik", "state": "Maharashtra", "category": "Vegetables"},
+    {"name": "Maize", "variety": "Hybrid-10", "msp": 2090, "market": "Nizamabad", "state": "Telangana", "category": "Cereals"},
+    {"name": "Mustard", "variety": "Pusa Bold", "msp": 5650, "market": "Alwar Mandi", "state": "Rajasthan", "category": "Oilseeds"},
+    {"name": "Chana", "variety": "Desi", "msp": 5440, "market": "Gulbarga", "state": "Karnataka", "category": "Pulses"},
 ]
 
 # Agmarknet commodity names for each tracked crop, matched case-insensitively.
@@ -85,10 +86,6 @@ def _with_change(p: dict) -> dict:
     return {**p, "change": change, "trend": trend, "msp_diff": msp_diff}
 
 
-def _sample_prices() -> list[dict]:
-    return [_with_change({**p, "date": None, "is_mock": True}) for p in SEED_PRICES]
-
-
 def _fetch_all_records() -> list[dict]:
     """Download the whole day's records. Filtering happens locally."""
     records, offset = [], 0
@@ -111,10 +108,14 @@ def _fetch_all_records() -> list[dict]:
     return records
 
 
-def _pick_record(seed: dict, records: list[dict]):
-    """Latest price for a crop: the preferred mandi if it reported, else the median
-    mandi in the crop's home state, else the median mandi nationally. The home state
-    comes first because some states report far more mandis than others."""
+def _pick_record(seed: dict, records: list[dict], known_markets: list[str] = None):
+    """Latest price for a crop, from the first of these that reported:
+    1. a mandi with stored history, most recently used first, so the change %
+       compares the same market (if the last mandi skips a day, an older one
+       keeps the history going instead of starting over somewhere new)
+    2. the preferred mandi
+    3. the median mandi in the crop's home state (some states report far more mandis)
+    4. the median mandi nationally"""
     names = AGMARKNET_NAMES[seed["name"]]
     rows = []
     for rec in records:
@@ -128,6 +129,11 @@ def _pick_record(seed: dict, records: list[dict]):
 
     latest = max(day for day, _, _ in rows)
     rows = sorted((r for r in rows if r[0] == latest), key=lambda r: r[1])
+    by_market = {str(r[2].get("market", "")).strip().lower(): r for r in rows}
+    for market in known_markets or []:
+        row = by_market.get(market.strip().lower())
+        if row:
+            return row
     preferred = seed["market"].split()[0].lower()
     for row in rows:
         if preferred in str(row[2].get("market", "")).lower():
@@ -137,8 +143,17 @@ def _pick_record(seed: dict, records: list[dict]):
     return rows[len(rows) // 2]
 
 
+def _known_markets(db, crop: str) -> list[str]:
+    """Every mandi stored for this crop, most recently used first."""
+    rows = db.query(MarketPrice.market, func.max(MarketPrice.recorded_at)) \
+        .filter(MarketPrice.crop_name == crop) \
+        .group_by(MarketPrice.market) \
+        .order_by(func.max(MarketPrice.recorded_at).desc()).all()
+    return [market for market, _ in rows if market]
+
+
 def _prev_price_and_save(db, row: dict, day: date):
-    """Return the last stored price for this crop and mandi, and store today's."""
+    """Return the last stored (price, date) for this crop and mandi, and store today's."""
     day_start = datetime.combine(day, datetime.min.time())
     same = db.query(MarketPrice).filter(
         MarketPrice.crop_name == row["name"], MarketPrice.market == row["market"]
@@ -150,18 +165,17 @@ def _prev_price_and_save(db, row: dict, day: date):
             prev_price=prev.price if prev else None, msp=row["msp"], market=row["market"],
             state=row["state"], category=row["category"], recorded_at=day_start,
         ))
-    return prev.price if prev else None
+    return (prev.price, prev.recorded_at.date()) if prev else (None, None)
 
 
 def _build_live_prices(records: list[dict]) -> list[dict]:
     prices = []
     db = SessionLocal()
     try:
-        for seed in SEED_PRICES:
-            picked = _pick_record(seed, records)
+        for seed in TRACKED_CROPS:
+            picked = _pick_record(seed, records, _known_markets(db, seed["name"]))
             if not picked:
-                logger.warning("No live mandi price for %s; showing its sample price", seed["name"])
-                prices.append(_with_change({**seed, "date": None, "is_mock": True}))
+                logger.warning("No live mandi price for %s today; leaving it out", seed["name"])
                 continue
             day, price, rec = picked
             row = {
@@ -171,9 +185,12 @@ def _build_live_prices(records: list[dict]) -> list[dict]:
                 "market": str(rec.get("market") or "").strip() or seed["market"],
                 "state": str(rec.get("state") or "").strip() or seed["state"],
                 "date": day.isoformat(),
-                "is_mock": False,
             }
-            row["prev"] = _prev_price_and_save(db, row, day)
+            prev, prev_day = _prev_price_and_save(db, row, day)
+            # The change % compares with the last stored day at this mandi, which
+            # is not always yesterday (mandis skip days).
+            row["prev"] = prev
+            row["prev_date"] = prev_day.isoformat() if prev_day else None
             prices.append(_with_change(row))
         db.commit()
     finally:
@@ -184,11 +201,11 @@ def _build_live_prices(records: list[dict]) -> list[dict]:
 def _refresh():
     try:
         prices = _build_live_prices(_fetch_all_records())
-        live = sum(not p["is_mock"] for p in prices)
-        print(f"📈 Mandi prices refreshed: {live}/{len(prices)} crops live")
+        print(f"📈 Mandi prices refreshed: {len(prices)}/{len(TRACKED_CROPS)} crops have live prices")
         with _lock:
-            _state["prices"] = prices
-            _state["next_refresh"] = time.time() + (REFRESH_SECONDS if live else RETRY_SECONDS)
+            if prices:   # an empty answer keeps the last good prices
+                _state["prices"] = prices
+            _state["next_refresh"] = time.time() + (REFRESH_SECONDS if prices else RETRY_SECONDS)
     except Exception as e:
         # Log only the error type: request errors can include the URL with the API key.
         logger.warning("Mandi price refresh failed (%s); retrying in 30 minutes", type(e).__name__)
@@ -210,25 +227,58 @@ def start_price_refresh():
     threading.Thread(target=_refresh, daemon=True).start()
 
 
+SCHEDULER_CHECK_SECONDS = 15 * 60
+_scheduler_started = False
+
+
+def start_price_scheduler():
+    """Keep prices refreshing while the server runs, even if nobody opens the
+    Market tab, so each day's price gets stored."""
+    global _scheduler_started
+    if _scheduler_started or not settings.DATA_GOV_API_KEY:
+        return
+    _scheduler_started = True
+
+    def loop():
+        while True:
+            start_price_refresh()   # does nothing until a refresh is due
+            time.sleep(SCHEDULER_CHECK_SECONDS)
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
 def get_market_prices() -> list[dict]:
-    """Latest prices: live where available, otherwise sample prices with is_mock=True."""
+    """Latest live prices. Empty until the first refresh succeeds."""
     start_price_refresh()
     with _lock:
         prices = _state["prices"]
-    return prices if prices is not None else _sample_prices()
+    return prices or []
+
+
+FORECAST_CACHE_SECONDS = 6 * 60 * 60   # prices change once a day
+_forecast_cache: dict = {}             # crops -> (generated_at, forecast)
 
 
 async def get_price_forecast(crops: list[str] = None) -> list[dict]:
-    """AI-generated 30-day price forecast."""
+    """AI-generated 30-day price forecast, cached. Serves the last forecast if Gemini is down."""
     target_crops = crops or ["Tomato", "Onion", "Wheat"]
-    current = {p["name"]: p["price"] for p in get_market_prices()}
+    key = tuple(sorted(c.strip().lower() for c in target_crops))
+    cached = _forecast_cache.get(key)
+    if cached and time.time() - cached[0] < FORECAST_CACHE_SECONDS:
+        return cached[1]
+
+    current = {p["name"].lower(): p for p in get_market_prices()}
+    # Forecast only crops with a live price; without one Gemini would invent it.
+    target_crops = [current[c.strip().lower()]["name"] for c in target_crops if c.strip().lower() in current]
+    if not target_crops:
+        return []
 
     rag_docs = similarity_search("crop price forecast market India", n_results=2)
     rag_context = "\n".join([d["text"] for d in rag_docs])
 
     prompt = f"""
 CURRENT MARKET PRICES (₹/quintal):
-{chr(10).join([f"{c}: ₹{current.get(c, 'N/A')}" for c in target_crops])}
+{chr(10).join([f"{c}: ₹{current[c.lower()]['price']} at {current[c.lower()]['market']}" for c in target_crops])}
 
 MARKET KNOWLEDGE:
 {rag_context}
@@ -249,4 +299,13 @@ Generate 30-day price forecasts as JSON array:
 ]
 Only forecast these crops: {target_crops}"""
 
-    return await generate_json(prompt, MARKET_SYSTEM)
+    try:
+        forecast = await generate_json(prompt, MARKET_SYSTEM)
+    except GeminiUnavailableError:
+        if cached:
+            return cached[1]   # older than 6 hours, but better than an error
+        raise
+    if len(_forecast_cache) > 100:   # crop lists come from the client; keep memory bounded
+        _forecast_cache.clear()
+    _forecast_cache[key] = (time.time(), forecast)
+    return forecast

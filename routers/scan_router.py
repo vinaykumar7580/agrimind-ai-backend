@@ -1,4 +1,9 @@
+import csv
+import io
+
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi.responses import Response
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 from database import get_db
@@ -85,14 +90,85 @@ def scan_history(
     skip: int = 0,
     limit: int = 20,
     scan_type: Optional[str] = None,
+    search: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    limit = max(1, min(limit, 50))
     q = db.query(Scan).filter(Scan.user_id == current_user.id)
-    if scan_type:
+    if scan_type in ("crop", "soil"):
         q = q.filter(Scan.scan_type == scan_type)
-    scans = q.order_by(Scan.created_at.desc()).offset(skip).limit(limit).all()
+    if search:
+        pattern = f"%{search}%"
+        soil_type = func.json_unquote(func.json_extract(Scan.soil_data, "$.soil_type"))
+        q = q.filter(
+            Scan.crop_name.ilike(pattern) | Scan.disease.ilike(pattern) |
+            Scan.location.ilike(pattern) | soil_type.ilike(pattern)
+        )
+    scans = q.order_by(Scan.created_at.desc(), Scan.id.desc()).offset(skip).limit(limit).all()
     return [_scan_out(s) for s in scans]
+
+# /stats and /export must stay above /{scan_id}, or they are parsed as a scan id.
+@router.get("/stats")
+def scan_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    rows = db.query(Scan.status, func.count(Scan.id))\
+        .filter(Scan.user_id == current_user.id).group_by(Scan.status).all()
+    counts = {status: n for status, n in rows}
+    return {
+        "total": sum(counts.values()),
+        "healthy": counts.get("healthy", 0),
+        "treated": counts.get("treated", 0),
+        "pending": counts.get("pending", 0),
+    }
+
+@router.get("/export")
+def export_scans(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    scans = db.query(Scan).filter(Scan.user_id == current_user.id)\
+        .order_by(Scan.created_at.desc(), Scan.id.desc()).all()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["Date (UTC)", "Type", "Crop / Soil", "Issue", "Severity",
+                     "Health score", "Status", "Location", "AI summary"])
+    for s in scans:
+        name, issue = _scan_label(s)
+        writer.writerow([_csv_safe(v) for v in (
+            s.created_at.strftime("%Y-%m-%d %H:%M"), s.scan_type, name, issue,
+            s.severity or "", s.health_score if s.health_score is not None else "",
+            s.status, s.location or "", s.ai_summary or "",
+        )])
+
+    # The BOM makes Excel read the file as UTF-8 (₹, Hindi text).
+    return Response(
+        content="﻿" + buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="agrimind-scans.csv"'},
+    )
+
+def _scan_label(scan: Scan) -> tuple:
+    """Display name and main issue; soil scans keep theirs inside soil_data."""
+    if scan.scan_type == "crop":
+        return scan.crop_name or "Unknown crop", scan.disease or "Healthy"
+    data = scan.soil_data or {}
+    issues = []
+    ph = data.get("ph")
+    if isinstance(ph, dict) and ph.get("status") not in (None, "good"):
+        issues.append(f"{str(ph['status']).title()} pH")
+    for key, n in (data.get("nutrients") or {}).items():
+        if isinstance(n, dict) and n.get("status") not in (None, "good"):
+            issues.append(f"{str(n['status']).title()} {key.replace('_', ' ').title()}")
+    return f"{data.get('soil_type') or 'Soil'} soil", ", ".join(issues) or "Healthy"
+
+def _csv_safe(value):
+    """Stop spreadsheet apps from running AI or user text as a formula."""
+    text = str(value)
+    return f"'{text}" if text[:1] in ("=", "+", "-", "@") else text
 
 @router.get("/{scan_id}")
 def get_scan(

@@ -24,7 +24,7 @@ async def send_message(
     # Get conversation history (last 10 messages)
     history = db.query(ChatMessage)\
         .filter(ChatMessage.user_id == current_user.id)\
-        .order_by(ChatMessage.created_at.desc())\
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())\
         .limit(10).all()
     history_list = [{"role": m.role, "content": m.content} for m in reversed(history)]
 
@@ -50,16 +50,14 @@ async def send_message(
         "primary_crops": current_user.primary_crops,
     }
 
-    # Save user message
-    user_msg = ChatMessage(user_id=current_user.id, role="user", content=req.message, scan_id=req.scan_id)
-    db.add(user_msg)
-    db.commit()
-
-    # Generate AI response
+    # Generate the reply first. If Gemini fails, nothing is saved, so the history
+    # never holds a question without an answer.
     response = await chat(req.message, history_list, scan_context, user_profile)
 
-    # Save AI response
+    user_msg = ChatMessage(user_id=current_user.id, role="user", content=req.message, scan_id=req.scan_id)
     ai_msg = ChatMessage(user_id=current_user.id, role="assistant", content=response, scan_id=req.scan_id)
+    db.add(user_msg)
+    db.flush()   # give the user message the earlier timestamp and id
     db.add(ai_msg)
     db.commit()
 
@@ -72,10 +70,14 @@ def get_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Newest messages first so the limit keeps the latest ones, then flip to
+    # oldest-first for display. id breaks ties: a question and its reply are
+    # saved together and usually share the same created_at second.
     messages = db.query(ChatMessage)\
         .filter(ChatMessage.user_id == current_user.id)\
-        .order_by(ChatMessage.created_at.asc())\
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())\
         .offset(skip).limit(limit).all()
+    messages.reverse()
     return [{"id": m.id, "role": m.role, "content": m.content, "created_at": m.created_at.isoformat()} for m in messages]
 
 @router.delete("/history")
