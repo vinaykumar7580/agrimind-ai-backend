@@ -1,4 +1,5 @@
 import logging
+import re
 import threading
 import time
 from datetime import date, datetime
@@ -198,6 +199,14 @@ def _build_live_prices(records: list[dict]) -> list[dict]:
     return prices
 
 
+def _redact(error: Exception) -> str:
+    """The error message with the API key removed (request errors include the URL)."""
+    message = str(error)
+    if settings.DATA_GOV_API_KEY:
+        message = message.replace(settings.DATA_GOV_API_KEY, "***")
+    return re.sub(r"api-key=[^&\s'\"]+", "api-key=***", message)[:300]
+
+
 def _refresh():
     try:
         prices = _build_live_prices(_fetch_all_records())
@@ -207,8 +216,8 @@ def _refresh():
                 _state["prices"] = prices
             _state["next_refresh"] = time.time() + (REFRESH_SECONDS if prices else RETRY_SECONDS)
     except Exception as e:
-        # Log only the error type: request errors can include the URL with the API key.
-        logger.warning("Mandi price refresh failed (%s); retrying in 30 minutes", type(e).__name__)
+        logger.warning("Mandi price refresh failed (%s: %s); retrying in 30 minutes",
+                       type(e).__name__, _redact(e))
         with _lock:
             _state["next_refresh"] = time.time() + RETRY_SECONDS
     finally:
