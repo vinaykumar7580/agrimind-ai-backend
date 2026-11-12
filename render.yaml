@@ -1,0 +1,50 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# In Render: New > Blueprint > pick this repo. Values marked "sync: false"
+# are asked for when you create it (paste them from your .env).
+services:
+  - type: web
+    name: agrimind-backend
+    runtime: python
+    plan: free
+    # Download the embedding model during the build so it isn't fetched on every cold start.
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python -c "from rag.vector_store import get_model; get_model()"
+    # One worker: the free plan has 512 MB of RAM.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: APP_SECRET_KEY
+        generateValue: true
+      - key: APP_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "10080"
+      # Cloud MySQL (TiDB Cloud Serverless or Aiven)
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DATABASE
+        value: agrimind
+      - key: MYSQL_SSL
+        value: "true"
+      # Your Vercel URL, e.g. https://agrimind.vercel.app (comma-separate several)
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: GEMINI_VISION_MODEL
+        value: gemini-3.6-flash
+      - key: OPENWEATHER_API_KEY
+        sync: false
+      - key: DATA_GOV_API_KEY
+        sync: false

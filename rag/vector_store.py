@@ -2,21 +2,30 @@ import json
 import numpy as np
 import faiss
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from rag.knowledge_base import ALL_DOCS
 
 STORE_PATH = Path("./faiss_store")
-_model: SentenceTransformer = None
+# all-MiniLM-L6-v2 run with ONNX instead of PyTorch: identical vectors to the
+# sentence-transformers version (so the saved index still matches) at about a
+# quarter of the memory. The model is cached in the project folder so a deploy
+# can download it once at build time.
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+MODEL_CACHE = Path("./.fastembed_cache")
+_model: TextEmbedding = None
 _index: faiss.Index = None
 _docs: list = []
 
-def get_model() -> SentenceTransformer:
+def get_model() -> TextEmbedding:
     global _model
     if _model is None:
         print("📦 Loading embedding model...")
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        _model = TextEmbedding(EMBED_MODEL, cache_dir=str(MODEL_CACHE))
         print("✅ Embedding model loaded")
     return _model
+
+def _encode(texts: list[str]) -> np.ndarray:
+    return np.array(list(get_model().embed(texts, batch_size=16)), dtype="float32")
 
 def init_vector_store():
     global _index, _docs
@@ -30,19 +39,15 @@ def init_vector_store():
         _index = faiss.read_index(str(index_file))
         _docs  = json.loads(docs_file.read_text(encoding="utf-8"))
         print(f"✅ FAISS index loaded — {len(_docs)} documents")
+        get_model()   # load now so the first chat or scan isn't slow
         return
 
     # Build index from scratch
     print("📚 Building FAISS index from knowledge base...")
-    model  = get_model()
     texts  = [d["text"] for d in ALL_DOCS]
 
     # Generate embeddings
-    embeddings = model.encode(
-        texts,
-        show_progress_bar=True,
-        batch_size=16
-    ).astype("float32")
+    embeddings = _encode(texts)
 
     # Normalize for cosine similarity
     faiss.normalize_L2(embeddings)
@@ -75,10 +80,8 @@ def similarity_search(
     if _index is None:
         init_vector_store()
 
-    model = get_model()
-
     # Encode and normalize query
-    q_vec = model.encode([query]).astype("float32")
+    q_vec = _encode([query])
     faiss.normalize_L2(q_vec)
 
     # Search — get more results if we need to filter

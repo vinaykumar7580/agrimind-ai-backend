@@ -95,7 +95,7 @@ The platform uses a **3-step agentic AI pipeline**: vision model analysis → RA
 |---|---|
 | Google Gemini | Hosted LLM for text generation, diagnosis and chat |
 | Gemini Vision | Crop/soil image analysis |
-| all-MiniLM-L6-v2 | Local text embeddings for RAG (sentence-transformers) |
+| all-MiniLM-L6-v2 | Local text embeddings for RAG (fastembed / ONNX, no PyTorch) |
 | FAISS | Vector similarity search |
 
 ### Database
@@ -395,6 +395,11 @@ MYSQL_PORT=3306
 MYSQL_USER=agrimind_user
 MYSQL_PASSWORD=your_mysql_password
 MYSQL_DATABASE=agrimind
+MYSQL_SSL=false                          # true for cloud MySQL (TiDB Cloud, Aiven)
+
+# ── CORS ──────────────────────────────────────
+# Frontend URLs allowed to call the API, comma-separated
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
 # ── Gemini ────────────────────────────────────
 GEMINI_API_KEY=your_gemini_api_key
@@ -404,6 +409,9 @@ GEMINI_VISION_MODEL=gemini-3.6-flash     # Vision model
 # ── OpenWeatherMap (free tier) ────────────────
 # Get free API key at: https://openweathermap.org/api
 OPENWEATHER_API_KEY=your_openweather_api_key
+
+# ── data.gov.in (live mandi prices) ───────────
+DATA_GOV_API_KEY=your_data_gov_api_key
 ```
 
 ---
@@ -669,6 +677,29 @@ For production, also:
 - Put Nginx in front of both services
 - Use environment-specific CORS origins
 - Set up log rotation for `uploads/` directory
+
+### Free deployment (Render + TiDB Cloud + Vercel)
+
+**1. Database: TiDB Cloud Serverless** (MySQL-compatible, free tier)
+1. Create a Serverless cluster at [tidbcloud.com](https://tidbcloud.com).
+2. Click **Connect** and note the host, port (usually `4000`), user and password.
+3. Create the database: `CREATE DATABASE agrimind;`. Tables are created automatically on first start.
+
+**2. Backend: Render** (free web service)
+1. Push this repo to GitHub.
+2. In Render, choose **New > Blueprint** and pick the repo. It reads [render.yaml](render.yaml).
+3. Fill in the values it asks for: the TiDB details, `GEMINI_API_KEY`, `OPENWEATHER_API_KEY`, `DATA_GOV_API_KEY`, and `CORS_ORIGINS` (your Vercel URL, added after step 3).
+4. When the deploy finishes, open `https://<your-service>.onrender.com/health`.
+
+**3. Frontend: Vercel**
+1. Import the frontend repo at [vercel.com](https://vercel.com).
+2. Point its backend URL setting at your Render URL.
+3. Copy the Vercel URL into `CORS_ORIGINS` on Render and redeploy.
+
+**Free tier limits to expect**
+- Render's free service sleeps after about 15 minutes without traffic; the next request takes up to a minute while it wakes. Mandi prices are not saved while it sleeps.
+- The disk is reset on every deploy and restart, so uploaded scan images in `uploads/` are lost.
+- Gemini's free tier has daily request limits.
 
 ---
 

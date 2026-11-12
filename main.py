@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from config import settings
 from database import init_db
 from rag.vector_store import init_vector_store
 from agents.market_agent import start_price_scheduler
@@ -38,7 +39,7 @@ async def gemini_unavailable_handler(request: Request, exc: GeminiUnavailableErr
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[o.strip().rstrip("/") for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

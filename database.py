@@ -1,3 +1,4 @@
+import certifi
 from sqlalchemy import URL, create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from config import settings
@@ -12,7 +13,11 @@ DATABASE_URL = URL.create(
     database=settings.MYSQL_DATABASE,
 )
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=3600)
+# Cloud MySQL providers require an encrypted connection; verify the server
+# certificate against the standard CA bundle.
+connect_args = {"ssl": {"ca": certifi.where()}} if settings.MYSQL_SSL else {}
+
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):
